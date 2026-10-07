@@ -9,7 +9,8 @@
   const state = {
     lat: 35.68123, lon: 139.76712, accuracy: null, located: false, // 初期値は東京駅付近
     rot: 180, w: 30, d: 20, face: 0,
-    date: iso(new Date()), hour: 14, layer: "osm", tz: 9
+    date: iso(new Date()), hour: 14, layer: "osm", tz: 9,
+    cloud: null, cloudMsg: ""
   };
 
   // 共有できるよう、状態を URL のハッシュに保存する
@@ -186,6 +187,45 @@
     }).join("");
   }
 
+  const W = window.Weather;
+  function cloudNote(w) {
+    if (w.cloud == null) return "";
+    const c = Math.round(w.cloud);
+    if (w.k === "u") return `雲量 ${c}%`;
+    return c >= 75 ? `雲量 ${c}%（曇りで光が拡散し、陰影は弱め）` : c >= 40 ? `雲量 ${c}%（雲の切れ間しだい）` : `雲量 ${c}%（直射が期待できる）`;
+  }
+
+  function renderCloud() {
+    const el = $("cloud");
+    el.hidden = !state.cloud;
+    if (state.cloud) {
+      el.innerHTML = state.cloud.map((v, h) =>
+        `<span style="background:color-mix(in srgb, var(--sub) ${15 + v * 0.8}%, transparent)" title="${h}時 雲量 ${Math.round(v)}%"></span>`).join("");
+    }
+    $("cloudLabel").textContent = state.cloud ? "雲量（濃いほど曇り）" : state.cloudMsg;
+  }
+
+  let weatherKey = "", weatherTimer = null, weatherSeq = 0;
+  function scheduleWeather() {
+    const key = `${state.lat.toFixed(2)},${state.lon.toFixed(2)},${state.date}`;
+    if (key === weatherKey) return;
+    weatherKey = key; state.cloud = null; state.cloudMsg = "天気を取得中…";
+    clearTimeout(weatherTimer);
+    const seq = ++weatherSeq;
+    weatherTimer = setTimeout(async () => {
+      try {
+        const r = await W.fetchCloud(state.lat, state.lon, state.date);
+        if (seq !== weatherSeq) return;
+        state.cloud = r.cloud; state.cloudMsg = "";
+        state.tz = r.utcOffsetH; // 天気APIが返す現地の時差で、太陽計算の時刻を合わせる
+      } catch (err) {
+        if (seq !== weatherSeq) return;
+        state.cloud = null; state.cloudMsg = "雲量を取得できません：" + err.message;
+      }
+      render();
+    }, 350);
+  }
+
   function renderResult() {
     const b = faceBearing(state.face);
     $("faceName").textContent = `${compass(b)}向きの面（${d0(b)}°）`;
@@ -204,18 +244,21 @@
       tl.appendChild(i);
     });
 
-    const longest = k => wins.filter(w => w.k === k && w.e - w.s >= 0.34).sort((a, c) => (c.e - c.s) - (a.e - a.s))[0];
+    wins.forEach(w => { w.cloud = W.average(state.cloud, w.s, w.e); });
+    // 雲が多いと直射の陰影が弱まるので、順光・斜光は雲量で目減りさせて比較する
+    const eff = w => (w.e - w.s) * (w.cloud == null || w.k === "u" ? 1 : 1 - 0.8 * w.cloud / 100);
+    const longest = k => wins.filter(w => w.k === k && w.e - w.s >= 0.34).sort((a, c) => eff(c) - eff(a))[0];
     const best = longest("f") || longest("g") || longest("s") || longest("u");
     if (best) {
       $("bestTime").textContent = `${hhmm(best.s)}–${hhmm(best.e)}`;
-      $("bestWhy").textContent = `${LABEL[best.k]}。${NOTE[best.k]}。`;
+      $("bestWhy").textContent = `${LABEL[best.k]}。${NOTE[best.k]}。${cloudNote(best)}`;
     } else {
       $("bestTime").textContent = "—";
       $("bestWhy").textContent = "この日は直射が当たりません。曇りの柔らかい光や、ブルーアワーの空との対比が狙い目です。";
     }
     const items = wins.filter(w => w.k !== "b" && w.e - w.s >= 0.34);
     $("list").innerHTML = items.length
-      ? items.map(w => `<li><div>${LABEL[w.k]} ${hhmm(w.s)}–${hhmm(w.e)}<small>${NOTE[w.k]}</small></div><div class="score">${STAR[w.k]}</div></li>`).join("")
+      ? items.map(w => `<li><div>${LABEL[w.k]} ${hhmm(w.s)}–${hhmm(w.e)}<small>${NOTE[w.k]}${cloudNote(w) ? "。" + cloudNote(w) : ""}</small></div><div class="score">${STAR[w.k]}</div></li>`).join("")
       : "<li><div>該当する時間帯がありません</div></li>";
     return prof;
   }
@@ -247,9 +290,10 @@
     $("date").value = state.date;
   }
 
-  function update() {
-    renderControls(); renderCoord(); drawMap(); renderFaces(); renderResult(); renderTime(); renderSun(); saveHash();
+  function render() {
+    renderControls(); renderCoord(); drawMap(); renderFaces(); renderResult(); renderCloud(); renderTime(); renderSun(); saveHash();
   }
+  function update() { scheduleWeather(); render(); }
 
   // ---------- 操作 ----------
   $("rot").addEventListener("input", e => { state.rot = +e.target.value; update(); });
