@@ -17,15 +17,19 @@
     <p>場所・建物の向き・日付から、各面がきれいに撮れる時間を出します</p>
   </header>
 
-  <section class="card">
-    <h2>1. 場所と建物の向き</h2>
-    <button class="btn full" id="locBtn">📍 現在地を使う</button>
-    <form class="searchbar" id="searchForm">
-      <input id="q" type="search" placeholder="住所・地名で検索（日本国内）" aria-label="住所・地名">
-      <button class="btn ghost" type="submit">検索</button>
-    </form>
-    <ul class="results" id="results" hidden></ul>
-    <div class="coord" id="coord"></div>
+  <section class="card stage">
+    <details class="fold" id="locBox">
+      <summary><span>📍 場所</span><span class="sum" id="locSummary"></span></summary>
+      <div class="foldbody">
+        <button class="btn full" id="locBtn">📍 現在地を使う</button>
+        <form class="searchbar" id="searchForm">
+          <input id="q" type="search" placeholder="住所・地名で検索（日本国内）" aria-label="住所・地名">
+          <button class="btn ghost" type="submit">検索</button>
+        </form>
+        <ul class="results" id="results" hidden></ul>
+        <div class="coord" id="coord"></div>
+      </div>
+    </details>
 
     <div class="mapbox">
       <div id="map" role="application" aria-label="地図"></div>
@@ -34,48 +38,51 @@
         <button class="chip" data-layer="gsi">航空写真</button>
       </div>
     </div>
-    <p class="hint">建物の中心の● をドラッグで移動、⟳ をドラッグで回転します。辺をタップするとその面を選択します。航空写真は日本国内のみ表示されます。</p>
 
-    <div class="rot">
-      <button class="btn ghost" id="m15" aria-label="左に15度">−15°</button>
-      <input type="range" id="rot" min="0" max="359" aria-label="建物の向き">
-      <button class="btn ghost" id="p15" aria-label="右に15度">+15°</button>
-      <output id="rotOut"></output>
-    </div>
-    <div class="size">
-      <label>幅 <input type="range" id="bw" min="6" max="150" aria-label="建物の幅"> <output id="bwOut"></output></label>
-      <label>奥行 <input type="range" id="bd" min="6" max="150" aria-label="建物の奥行"> <output id="bdOut"></output></label>
-    </div>
-    <div class="size">
-      <label>高さ <input type="range" id="bh" min="3" max="200" aria-label="建物の高さ"> <output id="bhOut"></output></label>
-    </div>
-    <div class="faces" id="faces"></div>
-  </section>
-
-  <section class="card">
-    <h2>2. 撮影日と時刻</h2>
-    <div class="row">
-      <input type="date" id="date" aria-label="撮影日">
-      <button class="chip" id="today">今日</button>
-      <button class="chip" id="weekend">週末</button>
-    </div>
     <div class="timebox">
       <input type="range" id="hour" min="0" max="1439" step="1" aria-label="時刻">
       <output id="hourOut"></output>
     </div>
     <div class="timeinfo" id="timeInfo"></div>
+    <div class="row datebar">
+      <input type="date" id="date" aria-label="撮影日">
+      <button class="chip" id="today">今日</button>
+      <button class="chip" id="weekend">週末</button>
+    </div>
+
+    <svg class="side" id="side" viewBox="0 0 480 230" role="img" aria-label="建物を横から見た図"></svg>
+
+    <details class="fold" id="bldBox">
+      <summary><span>🏢 建物の向き・サイズ</span><span class="sum" id="bldSummary"></span></summary>
+      <div class="foldbody">
+        <p class="hint" style="margin:0 0 4px">建物の中心の● をドラッグで移動、⟳ をドラッグで回転します。辺をタップするとその面を選択します。航空写真は日本国内のみ表示されます。</p>
+        <div class="rot">
+          <button class="btn ghost" id="m15" aria-label="左に15度">−15°</button>
+          <input type="range" id="rot" min="0" max="359" aria-label="建物の向き">
+          <button class="btn ghost" id="p15" aria-label="右に15度">+15°</button>
+          <output id="rotOut"></output>
+        </div>
+        <div class="size">
+          <label>幅 <input type="range" id="bw" min="6" max="150" aria-label="建物の幅"> <output id="bwOut"></output></label>
+          <label>奥行 <input type="range" id="bd" min="6" max="150" aria-label="建物の奥行"> <output id="bdOut"></output></label>
+        </div>
+        <div class="size">
+          <label>高さ <input type="range" id="bh" min="3" max="200" aria-label="建物の高さ"> <output id="bhOut"></output></label>
+        </div>
+        <div class="faces" id="faces"></div>
+      </div>
+    </details>
   </section>
 
   <section class="card">
-    <h2>太陽の高さ（横から見た図）</h2>
-    <svg class="side" id="side" viewBox="0 0 480 300" role="img" aria-label="建物を横から見た図"></svg>
+    <h2>太陽の高さ</h2>
     <div class="sidenote" id="sideNote"></div>
     <svg class="curve" id="curve" viewBox="0 0 480 160" role="img" aria-label="1日の太陽高度グラフ"></svg>
     <p class="hint">グラフやタイムラインを左右になぞると、時刻が切り替わります。</p>
   </section>
 
   <section class="card">
-    <h2>3. 結果：<span id="faceName"></span></h2>
+    <h2>結果：<span id="faceName"></span></h2>
     <div class="best">
       <div class="time" id="bestTime"></div>
       <div class="why" id="bestWhy"></div>
@@ -98,7 +105,7 @@
   </section>
 
   <section class="card">
-    <h2>4. ベスト日を探す（選択中の面）</h2>
+    <h2>ベスト日を探す（選択中の面）</h2>
     <div class="row">
       <select id="spanSel" aria-label="探す期間">
         <option value="30">今日から30日間</option>

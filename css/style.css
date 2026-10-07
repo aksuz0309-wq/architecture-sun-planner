@@ -28,7 +28,7 @@ header p { margin: 0 0 14px; color: var(--sub); font-size: 13px; }
 .coord small { color: var(--sub); }
 
 .mapbox { position: relative; border-radius: 12px; overflow: hidden; border: 1px solid var(--line); }
-#map { height: 360px; background: #2a2823; }
+#map { height: clamp(210px, 33vh, 340px); background: #2a2823; }
 #map.dark .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(.92) contrast(.88) saturate(.7); }
 .layerbtns { position: absolute; top: 10px; right: 10px; z-index: 800; display: flex; gap: 6px; }
 .layerbtns .chip { background: rgba(27,25,22,.85); backdrop-filter: blur(6px); }
@@ -82,6 +82,18 @@ input[type=range] { accent-color: var(--accent); }
 .curve { margin-top: 12px; cursor: ew-resize; touch-action: pan-y; user-select: none; -webkit-user-select: none; }
 .sidenote { font-size: 13px; color: var(--sub); margin-top: 8px; }
 .sidenote b { color: var(--ink); }
+.fold { margin: 0; }
+.fold > summary { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 2px; cursor: pointer; list-style: none; font-size: 14px; font-weight: 600; }
+.fold > summary::-webkit-details-marker { display: none; }
+.fold > summary::after { content: "›"; color: var(--sub); font-size: 20px; line-height: 1; transition: transform .15s; margin-left: 4px; }
+.fold[open] > summary::after { transform: rotate(90deg); }
+.fold .sum { flex: 1; text-align: right; font-weight: 400; font-size: 12px; color: var(--sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fold .foldbody { padding: 2px 0 6px; }
+#bldBox { margin-top: 8px; border-top: 1px solid var(--line); }
+.stage .mapbox { margin-top: 2px; }
+.stage .timebox { margin-top: 10px; }
+.stage .datebar { margin-top: 8px; }
+.stage .side { margin-top: 10px; }
 .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 10px; font-size: 12px; color: var(--sub); }
 .legend em { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; font-style: normal; }
 

@@ -149,6 +149,7 @@
   function moveTo(lat, lon, zoom, accuracy) {
     state.lat = lat; state.lon = lon; state.accuracy = accuracy || null; state.located = true;
     map.setView([lat, lon], zoom || 18);
+    $("locBox").open = false;
     onLocationChanged();
   }
 
@@ -298,6 +299,9 @@
     $("bd").value = state.d; $("bdOut").textContent = Math.round(state.d) + "m";
     $("bh").value = state.ht; $("bhOut").textContent = Math.round(state.ht) + "m";
     $("date").value = state.date;
+    const fb = faceBearing(state.face);
+    $("bldSummary").textContent = `${compass(fb)}向きの面 ${d0(fb)}°・${Math.round(state.w)}×${Math.round(state.d)}×高${Math.round(state.ht)}m`;
+    $("locSummary").textContent = `${state.lat.toFixed(4)}, ${state.lon.toFixed(4)}`;
   }
 
   function render() {
@@ -317,24 +321,24 @@
   function renderSide() {
     const sun = S.position(S.localMs(state.date, state.hour, state.tz), state.lat, state.lon);
     const b = faceBearing(state.face), diff = S.angleDiff(sun.az, b), up = sun.alt > S.HORIZON;
-    const H = state.ht, GY = 262, CORNER_X = 96;
+    const H = state.ht, GY = 200, CORNER_X = 96;
     const ext = extentAlong(sun.az);
-    let html = `<rect width="480" height="300" fill="#15130f"/>`;
+    let html = `<rect width="480" height="230" fill="#15130f"/>`;
     if (!up) {
-      html += `<rect x="0" y="${GY}" width="480" height="38" fill="#2a2823"/>
-        <rect x="${CORNER_X}" y="${GY - Math.min(H, 120)}" width="${Math.max(40, Math.min(ext * 3, 200))}" height="${Math.min(H, 120)}" fill="#37332c" stroke="#5a554c"/>
-        <text x="240" y="110" fill="#a39a8d" font-size="20" text-anchor="middle">太陽は地平線の下（${hhmm(state.hour)}）</text>`;
+      html += `<rect x="0" y="${GY}" width="480" height="30" fill="#2a2823"/>
+        <rect x="${CORNER_X}" y="${GY - Math.min(H, 90)}" width="${Math.max(40, Math.min(ext * 3, 200))}" height="${Math.min(H, 90)}" fill="#37332c" stroke="#5a554c"/>
+        <text x="240" y="80" fill="#a39a8d" font-size="20" text-anchor="middle">太陽は地平線の下（${hhmm(state.hour)}）</text>`;
       $("side").innerHTML = html;
       $("sideNote").innerHTML = `太陽高度 <b>${Math.round(sun.alt)}°</b>。夜間のため直射はありません。`;
       return;
     }
     const tanA = Math.tan(rad(Math.max(sun.alt, 0.5)));
     const shadow = H / tanA, shadowC = Math.min(shadow, H * 2.5 + ext);
-    const s = Math.min(330 / (ext + shadowC), 140 / H);
+    const s = Math.min(330 / (ext + shadowC), 100 / H);
     const bw = Math.max(ext * s, 34), bh = H * s, x0 = CORNER_X, y0 = GY - bh;
     const lit = diff < 90; // 選択面が太陽側にあるか
     // 地面と影
-    html += `<rect x="0" y="${GY}" width="480" height="38" fill="#2a2823"/>
+    html += `<rect x="0" y="${GY}" width="480" height="30" fill="#2a2823"/>
       <polygon points="${x0 + bw},${GY} ${x0 + bw + shadowC * s},${GY} ${x0 + bw + shadowC * s * 0.98},${GY + 14} ${x0 + bw},${GY + 14}" fill="#000" opacity=".55"/>`;
     // 建物（左＝太陽側の壁、右＝日陰側の壁）
     const wallL = lit ? "#e8a33d" : "#4a463d", wallR = lit ? "#4a463d" : "#e8a33d";
@@ -343,17 +347,17 @@
       <line x1="${x0}" y1="${y0}" x2="${x0}" y2="${GY}" stroke="${wallL}" stroke-width="7" ${lit ? "" : 'stroke-dasharray="6 5"'}/>
       <line x1="${x0 + bw}" y1="${y0}" x2="${x0 + bw}" y2="${GY}" stroke="${wallR}" stroke-width="7" ${lit ? 'stroke-dasharray="6 5"' : ""}/>`;
     // 太陽光線と高度角（屋根の太陽側の角から）
-    const L = 92, ex = x0 - Math.cos(rad(sun.alt)) * L, ey = y0 - Math.sin(rad(sun.alt)) * L;
+    const L = 66, ex = x0 - Math.cos(rad(sun.alt)) * L, ey = y0 - Math.sin(rad(sun.alt)) * L;
     html += `<line x1="${x0 - 70}" y1="${y0}" x2="${x0}" y2="${y0}" stroke="#a39a8d" stroke-dasharray="4 5"/>
       <line x1="${ex}" y1="${ey}" x2="${x0}" y2="${y0}" stroke="#f3c26b" stroke-width="3"/>
-      <path d="M ${x0 - 40} ${y0} A 40 40 0 0 1 ${x0 - Math.cos(rad(sun.alt)) * 40} ${y0 - Math.sin(rad(sun.alt)) * 40}" fill="none" stroke="#f3c26b" stroke-width="2"/>
+      <path d="M ${x0 - 32} ${y0} A 32 32 0 0 1 ${x0 - Math.cos(rad(sun.alt)) * 32} ${y0 - Math.sin(rad(sun.alt)) * 32}" fill="none" stroke="#f3c26b" stroke-width="2"/>
       <circle cx="${ex}" cy="${ey}" r="13" fill="#f3c26b" stroke="#e8a33d" stroke-width="3"/>
-      <text x="${x0 - 46}" y="${y0 - 6}" fill="#f0ebe3" font-size="20" font-weight="700" text-anchor="end">${Math.round(sun.alt)}°</text>`;
+      <text x="${x0 - 38}" y="${y0 - 5}" fill="#f0ebe3" font-size="20" font-weight="700" text-anchor="end">${Math.round(sun.alt)}°</text>`;
     // 寸法
     html += `<line x1="${x0 + bw + 14}" y1="${y0}" x2="${x0 + bw + 14}" y2="${GY}" stroke="#a39a8d"/>
       <text x="${x0 + bw + 20}" y="${(y0 + GY) / 2 + 5}" fill="#c9c0b2" font-size="17">高さ ${Math.round(H)}m</text>
-      <text x="${x0 + bw + (shadowC * s) / 2}" y="${GY + 28}" fill="#c9c0b2" font-size="16" text-anchor="middle">影 約${Math.round(shadow)}m${shadow > shadowC ? " →" : ""}</text>
-      <text x="${x0 + bw / 2}" y="${GY + 28}" fill="#c9c0b2" font-size="16" text-anchor="middle">奥行 ${Math.round(ext)}m</text>`;
+      <text x="${x0 + bw + (shadowC * s) / 2}" y="${GY + 22}" fill="#c9c0b2" font-size="15" text-anchor="middle">影 約${Math.round(shadow)}m${shadow > shadowC ? " →" : ""}</text>
+      <text x="${x0 + bw / 2}" y="${GY + 22}" fill="#c9c0b2" font-size="15" text-anchor="middle">奥行 ${Math.round(ext)}m</text>`;
     $("side").innerHTML = html;
     const k = S.classify(sun.alt, sun.az, b);
     $("sideNote").innerHTML = `${hhmm(state.hour)} の太陽は高度 <b>${Math.round(sun.alt)}°</b>。建物の影は高さの約 <b>${(1 / tanA).toFixed(1)}倍</b>。`
@@ -474,6 +478,7 @@
 
   // ---------- 起動 ----------
   loadHash();
+  $("locBox").open = !state.located; // 場所が未指定のときだけ最初から開いておく
   state.tz = estimateTz(state.lat, state.lon);
   map.setView([state.lat, state.lon], 18);
   setLayer(state.layer);
