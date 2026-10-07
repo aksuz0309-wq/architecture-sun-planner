@@ -1,5 +1,5 @@
 // アプリ本体だけをキャッシュする（地図タイル・天気APIは通信が必要）。通信できる時は常に最新を取りに行く。
-const CACHE = "sun-planner-v1";
+const CACHE = "facade-light-v1";
 const SHELL = ["./", "index.html", "css/style.css", "js/sun.js", "js/weather.js", "js/app.js", "manifest.webmanifest", "icon.svg"];
 
 self.addEventListener("install", e => {

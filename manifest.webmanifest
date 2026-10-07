@@ -1,6 +1,6 @@
 {
-  "name": "外観撮影 光読みプランナー",
-  "short_name": "光読み",
+  "name": "Facade Light",
+  "short_name": "Facade Light",
   "description": "場所・建物の向き・日付から、外観撮影に最適な時間を割り出します",
   "start_url": "./",
   "scope": "./",
