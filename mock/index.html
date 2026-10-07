@@ -1,0 +1,353 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>外観撮影 光読みプランナー（モック）</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #1b1916; --card: #24211d; --ink: #f0ebe3; --sub: #a39a8d; --line: #38342d;
+    --accent: #e0883a; --front: #e8a33d; --side: #c7692b; --back: #5a554c;
+    --golden: #f3c26b; --blue: #5d7fb8; --night: #2b3550;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.6 -apple-system, "Hiragino Sans", "Yu Gothic", sans-serif; }
+  .wrap { max-width: 720px; margin: 0 auto; padding: 16px; }
+  header h1 { font-size: 20px; margin: 4px 0 2px; letter-spacing: .02em; }
+  header p { margin: 0 0 14px; color: var(--sub); font-size: 13px; }
+  .badge { display: inline-block; font-size: 11px; padding: 1px 8px; border-radius: 99px;
+    background: var(--accent); color: #fff; vertical-align: middle; margin-left: 6px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 14px; margin-bottom: 12px; }
+  .card h2 { font-size: 13px; color: var(--sub); font-weight: 600; margin: 0 0 10px; letter-spacing: .06em; }
+
+  .searchbar { display: flex; gap: 8px; margin-bottom: 10px; }
+  .btn { padding: 10px 14px; border-radius: 10px; border: 0; background: var(--accent); color: #fff; font: inherit; cursor: pointer; }
+  .btn.ghost { background: var(--bg); color: var(--ink); border: 1px solid var(--line); }
+  .coord { font-size: 13px; margin-bottom: 10px; }
+  .coord small { color: var(--sub); }
+
+  .map { position: relative; border-radius: 12px; overflow: hidden; border: 1px solid var(--line); background: #2a2823; touch-action: none; }
+  .map svg { display: block; width: 100%; height: auto; cursor: grab; user-select: none; -webkit-user-select: none; }
+  .map svg.drag { cursor: grabbing; }
+  .hint { font-size: 12px; color: var(--sub); margin-top: 8px; }
+
+  .rot { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+  .rot input[type=range] { flex: 1; accent-color: var(--accent); }
+  .rot output { min-width: 4.5em; text-align: right; font-variant-numeric: tabular-nums; font-weight: 700; }
+  .rot .btn { padding: 6px 10px; }
+
+  .faces { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 12px; }
+  .face { border: 1px solid var(--line); border-radius: 12px; padding: 8px 4px; text-align: center;
+    background: var(--bg); cursor: pointer; color: var(--ink); font: inherit; }
+  .face b { display: block; font-size: 15px; }
+  .face span { font-size: 11px; color: var(--sub); }
+  .face.on { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent); }
+
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .row input[type=date] { padding: 9px 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); font: inherit; }
+  .chip { padding: 6px 12px; border-radius: 99px; border: 1px solid var(--line); background: var(--bg); font-size: 13px; color: var(--ink); cursor: pointer; }
+
+  .tl { position: relative; height: 54px; border-radius: 10px; overflow: hidden; background: var(--night); }
+  .tl i { position: absolute; top: 0; bottom: 0; display: block; }
+  .axis { display: flex; justify-content: space-between; font-size: 11px; color: var(--sub); margin-top: 4px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 10px; font-size: 12px; color: var(--sub); }
+  .legend em { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; font-style: normal; }
+  .cloud { display: flex; gap: 2px; margin-top: 10px; }
+  .cloud span { flex: 1; height: 18px; border-radius: 3px; }
+  .cloudlabel { font-size: 11px; color: var(--sub); margin-top: 2px; }
+
+  .best { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  .best .time { font-size: 28px; font-weight: 700; }
+  .best .why { font-size: 13px; color: var(--sub); }
+  .list { margin: 10px 0 0; padding: 0; list-style: none; }
+  .list li { display: flex; justify-content: space-between; gap: 8px; padding: 9px 0; border-top: 1px solid var(--line); font-size: 14px; }
+  .list small { color: var(--sub); display: block; font-size: 12px; }
+  .score { font-weight: 700; white-space: nowrap; }
+  .sun3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; text-align: center; }
+  .sun3 div { background: var(--bg); border-radius: 10px; padding: 8px 0; }
+  .sun3 b { display: block; font-size: 15px; }
+  .sun3 span { font-size: 11px; color: var(--sub); }
+  footer { color: var(--sub); font-size: 11px; text-align: center; margin: 18px 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>外観撮影 光読みプランナー<span class="badge">モック</span></h1>
+    <p>建物の向きを回すと、各面の光の時間帯が変わります（太陽位置は実計算、雲量のみダミー）</p>
+  </header>
+
+  <section class="card">
+    <h2>1. 場所と建物の向き</h2>
+    <div class="searchbar">
+      <button class="btn" id="locBtn" style="flex:1">📍 現在地を使う</button>
+      <button class="btn ghost">住所で検索</button>
+    </div>
+    <div class="coord" id="coord"></div>
+    <div class="map">
+      <svg id="map" viewBox="0 0 640 340" role="img" aria-label="地図（ダミー）"></svg>
+    </div>
+    <div class="rot">
+      <button class="btn ghost" id="m15" aria-label="左に15度">−15°</button>
+      <input type="range" id="rot" min="0" max="359" value="352" aria-label="建物の向き">
+      <button class="btn ghost" id="p15" aria-label="右に15度">+15°</button>
+      <output id="rotOut"></output>
+    </div>
+    <p class="hint">地図上をドラッグして建物を回せます。スライダーや ±15° でも調整できます。辺をタップするとその面を選択します。</p>
+    <div class="faces" id="faces"></div>
+  </section>
+
+  <section class="card">
+    <h2>2. 撮影日</h2>
+    <div class="row">
+      <input type="date" id="date" value="2026-10-24">
+      <button class="chip" id="today">今日</button>
+      <button class="chip" id="weekend">週末</button>
+      <button class="chip" title="実装予定">ベスト日を探す</button>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>3. 結果：<span id="faceName"></span> の光</h2>
+    <div class="best">
+      <div class="time" id="bestTime"></div>
+      <div class="why" id="bestWhy"></div>
+    </div>
+    <div style="margin-top:14px" class="tl" id="tl"></div>
+    <div class="axis"><span>0</span><span>6</span><span>12</span><span>18</span><span>24</span></div>
+    <div class="cloud" id="cloud"></div>
+    <div class="cloudlabel">雲量の予報（ダミー。実装時に Open-Meteo の実データへ）</div>
+    <div class="legend">
+      <span><em style="background:var(--front)"></em>順光</span>
+      <span><em style="background:var(--side)"></em>斜光（立体感）</span>
+      <span><em style="background:var(--back)"></em>逆光・影</span>
+      <span><em style="background:var(--golden)"></em>ゴールデンアワー</span>
+      <span><em style="background:var(--blue)"></em>ブルーアワー</span>
+    </div>
+    <ul class="list" id="list"></ul>
+  </section>
+
+  <section class="card">
+    <h2>この日の太陽</h2>
+    <div class="sun3" id="sun3"></div>
+  </section>
+
+  <footer>モックです。雲量は実装時に実データへ差し替えます。</footer>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const rad = d => d * Math.PI / 180, deg = r => r * 180 / Math.PI;
+const COL = { f:"var(--front)", s:"var(--side)", b:"var(--back)", g:"var(--golden)", u:"var(--blue)" };
+const state = { lat: 35.68123, lon: 139.76712, tz: 9, rot: 352, face: 0 };
+// 面のオフセット（回転0°のとき: 面0=南向き, 1=西向き, 2=北向き, 3=東向き）
+const FACE_OFFSETS = [180, 270, 0, 90];
+const CX = 337, CY = 160, HW = 80, HH = 55;
+
+const norm = a => ((a % 360) + 360) % 360;
+const faceBearing = i => norm(state.rot + FACE_OFFSETS[i]);
+const COMPASS = ["北","北東","東","南東","南","南西","西","北西"];
+const compass = b => COMPASS[Math.round(b / 45) % 8];
+const hhmm = h => { const m = Math.round(h * 60); return String(Math.floor(m / 60) % 24).padStart(2,"0") + ":" + String(m % 60).padStart(2,"0"); };
+
+// 太陽位置：方位は北=0°から時計回り、高度は水平線=0°
+function sunPos(ms, lat, lon) {
+  const d = ms / 86400000 + 2440587.5 - 2451545.0;
+  const L = norm(280.460 + 0.9856474 * d), g = rad(norm(357.528 + 0.9856003 * d));
+  const lam = rad(L + 1.915 * Math.sin(g) + 0.020 * Math.sin(2 * g));
+  const eps = rad(23.439 - 0.0000004 * d);
+  const ra = Math.atan2(Math.cos(eps) * Math.sin(lam), Math.cos(lam));
+  const dec = Math.asin(Math.sin(eps) * Math.sin(lam));
+  const H = rad(norm(280.46061837 + 360.98564736629 * d + lon)) - ra;
+  const phi = rad(lat);
+  const alt = Math.asin(Math.sin(phi) * Math.sin(dec) + Math.cos(phi) * Math.cos(dec) * Math.cos(H));
+  const az = Math.atan2(Math.sin(H), Math.cos(H) * Math.sin(phi) - Math.tan(dec) * Math.cos(phi));
+  return { alt: deg(alt), az: norm(deg(az) + 180) };
+}
+function sunAt(hour) {
+  const [y, m, dd] = $("date").value.split("-").map(Number);
+  return sunPos(Date.UTC(y, m - 1, dd, 0, 0) + (hour - state.tz) * 3600000, state.lat, state.lon);
+}
+
+// 1日を5分刻みで走査して、各時刻の光の種類を分類
+function classify(faceB) {
+  const out = [];
+  for (let h = 0; h < 24; h += 1 / 12) {
+    const s = sunAt(h);
+    const diff = Math.abs(norm(s.az - faceB + 180) - 180);
+    let k = null;
+    if (s.alt > 0) {
+      const lit = diff < 90 && s.alt > 2;
+      if (lit && s.alt <= 6) k = "g";
+      else if (lit && diff < 35) k = "f";
+      else if (lit && diff < 75) k = "s";
+      else k = "b";
+    } else if (s.alt > -6) k = "u";
+    out.push({ h, k, alt: s.alt });
+  }
+  return out;
+}
+function windows(samples) {
+  const w = []; let cur = null;
+  samples.forEach(p => {
+    if (cur && cur.k === p.k) cur.e = p.h + 1 / 12;
+    else { cur = { k: p.k, s: p.h, e: p.h + 1 / 12 }; w.push(cur); }
+  });
+  return w.filter(x => x.k);
+}
+
+// ---- 地図 ----
+function drawMap() {
+  const sel = state.face, r = state.rot;
+  const edges = [
+    [[-HW, HH], [HW, HH]],       // 面0 下辺（回転0で南向き）
+    [[-HW, -HH], [-HW, HH]],     // 面1 左辺（西向き）
+    [[-HW, -HH], [HW, -HH]],     // 面2 上辺（北向き）
+    [[HW, -HH], [HW, HH]]        // 面3 右辺（東向き）
+  ];
+  const lines = edges.map((e, i) =>
+    `<line data-edge="${i}" x1="${CX + e[0][0]}" y1="${CY + e[0][1]}" x2="${CX + e[1][0]}" y2="${CY + e[1][1]}"
+      stroke="${i === sel ? "#e0883a" : "#5d7fb8"}" stroke-width="${i === sel ? 8 : 6}" stroke-linecap="round" style="cursor:pointer"/>`).join("");
+  // 選択面の外向き矢印（回転しない座標で計算）
+  const b = faceBearing(sel), br = rad(b);
+  const mid = [(edges[sel][0][0] + edges[sel][1][0]) / 2, (edges[sel][0][1] + edges[sel][1][1]) / 2];
+  const mr = rad(r);
+  const mx = CX + mid[0] * Math.cos(mr) - mid[1] * Math.sin(mr);
+  const my = CY + mid[0] * Math.sin(mr) + mid[1] * Math.cos(mr);
+  const ax = mx + Math.sin(br) * 52, ay = my - Math.cos(br) * 52;
+  const lx = Math.min(560, Math.max(80, ax + Math.sin(br) * 36)), ly = Math.min(330, Math.max(22, ay - Math.cos(br) * 14));
+  // 太陽（現在選択日の南中付近ではなく、14時の位置を表示）
+  const s = sunAt(14);
+  const sx = 320 + Math.sin(rad(s.az)) * 270, sy = 170 - Math.cos(rad(s.az)) * 150;
+  $("map").innerHTML = `
+    <rect width="640" height="340" fill="#2a2823"/>
+    <g stroke="#3b372f" stroke-width="14" fill="none"><path d="M0 300 H640"/><path d="M140 0 V340"/><path d="M520 0 V340"/></g>
+    <g fill="#37332c"><rect x="30" y="30" width="90" height="80"/><rect x="540" y="30" width="80" height="90"/><rect x="30" y="140" width="90" height="120"/><rect x="540" y="160" width="80" height="110"/></g>
+    <g transform="rotate(${r} ${CX} ${CY})">
+      <rect x="${CX - HW}" y="${CY - HH}" width="${HW * 2}" height="${HH * 2}" fill="#5b5547"/>${lines}
+    </g>
+    <g stroke="#e0883a" stroke-width="3" fill="#e0883a"><line x1="${mx}" y1="${my}" x2="${ax}" y2="${ay}"/>
+      <polygon transform="translate(${ax} ${ay}) rotate(${b})" points="0,-10 7,6 -7,6"/></g>
+    <text x="${lx}" y="${ly}" font-size="14" fill="#f0ebe3" font-weight="700" text-anchor="middle">${compass(b)}向き ${Math.round(b)}°</text>
+    <circle cx="${CX}" cy="${CY}" r="4" fill="#f0ebe3"/>
+    <g transform="translate(${sx} ${sy})"><circle r="12" fill="#f3c26b" stroke="#e8a33d" stroke-width="3"/>
+      <text y="28" font-size="11" fill="#a39a8d" text-anchor="middle">14時の太陽</text></g>
+    <g transform="translate(40,300)"><circle r="18" fill="#24211d" stroke="#a39a8d"/><polygon points="0,-14 6,4 0,0 -6,4" fill="#e0883a"/><text y="-22" x="-5" font-size="12" fill="#f0ebe3">N</text></g>`;
+}
+
+// ---- 結果 ----
+const LABEL = { f: "順光", s: "斜光", g: "ゴールデンアワー", u: "ブルーアワー", b: "逆光・影" };
+const NOTE = { f: "面全体が均一に明るく、色が素直に出る", s: "凹凸の陰影が出て立体感が強まる", g: "暖色の低い光。壁面が色づく", u: "空の青と室内照明の明暗が映える" };
+const STAR = { f: "★★★", g: "★★★", s: "★★", u: "★★" };
+
+function renderResult() {
+  const b = faceBearing(state.face);
+  $("faceName").textContent = `${compass(b)}向きの面（${Math.round(b)}°）`;
+  const samples = classify(b), wins = windows(samples);
+  const tl = $("tl"); tl.innerHTML = "";
+  // 昼の帯
+  const ss = samples.filter(p => p.alt > 0);
+  if (ss.length) {
+    const i = document.createElement("i");
+    i.style.cssText = `left:${ss[0].h / 24 * 100}%;width:${(ss[ss.length - 1].h - ss[0].h) / 24 * 100}%;background:rgba(255,255,255,.10)`;
+    tl.appendChild(i);
+  }
+  wins.forEach(w => {
+    const i = document.createElement("i");
+    i.style.left = (w.s / 24 * 100) + "%"; i.style.width = ((w.e - w.s) / 24 * 100) + "%";
+    i.style.background = COL[w.k]; tl.appendChild(i);
+  });
+  // ベスト：最長の順光、無ければ ゴールデン → 斜光
+  const pick = k => wins.filter(w => w.k === k && w.e - w.s >= 0.34).sort((a, c) => (c.e - c.s) - (a.e - a.s))[0];
+  const best = pick("f") || pick("g") || pick("s") || pick("u");
+  if (best) {
+    $("bestTime").textContent = `${hhmm(best.s)}–${hhmm(best.e)}`;
+    $("bestWhy").textContent = `${LABEL[best.k]}。${NOTE[best.k]}。`;
+  } else {
+    $("bestTime").textContent = "—";
+    $("bestWhy").textContent = "この日は直射が当たりません。曇りの柔らかい光やブルーアワーの空との対比が狙い目です。";
+  }
+  const items = wins.filter(w => w.k !== "b" && w.e - w.s >= 0.34);
+  $("list").innerHTML = items.length ? items.map(w =>
+    `<li><div>${LABEL[w.k]} ${hhmm(w.s)}–${hhmm(w.e)}<small>${NOTE[w.k]}</small></div><div class="score">${STAR[w.k]}</div></li>`).join("")
+    : `<li><div>該当する時間帯がありません</div></li>`;
+}
+
+function renderSun() {
+  const samples = classify(0);
+  const up = samples.filter(p => p.alt > 0);
+  const rise = up[0] ? up[0].h : null, set = up.length ? up[up.length - 1].h + 1 / 12 : null;
+  const noon = samples.reduce((a, p) => p.alt > a.alt ? p : a, samples[0]);
+  const gold = samples.filter(p => p.h > noon.h && p.alt > 0 && p.alt <= 6);
+  const blue = samples.filter(p => p.h > noon.h && p.alt <= 0 && p.alt > -6);
+  const rg = a => a.length ? `${hhmm(a[0].h)}–${hhmm(a[a.length - 1].h + 1 / 12)}` : "—";
+  $("sun3").innerHTML = [
+    [rise == null ? "—" : hhmm(rise), "日の出"],
+    [hhmm(noon.h), `南中（高度 ${Math.round(noon.alt)}°）`],
+    [set == null ? "—" : hhmm(set), "日の入り"],
+    [rg(gold), "ゴールデンアワー（夕）"], [rg(blue), "ブルーアワー（夕）"], ["ダミー", "雲量（実装予定）"]
+  ].map(([a, b]) => `<div><b>${a}</b><span>${b}</span></div>`).join("");
+}
+
+function renderFaces() {
+  $("faces").innerHTML = [0, 1, 2, 3].map(i => {
+    const b = faceBearing(i);
+    return `<button class="face ${i === state.face ? "on" : ""}" data-i="${i}"><b>${compass(b)}</b><span>${Math.round(b)}°</span></button>`;
+  }).join("");
+}
+
+function update() {
+  $("rot").value = Math.round(state.rot); $("rotOut").textContent = Math.round(state.rot) + "°";
+  $("coord").innerHTML = `緯度 ${state.lat.toFixed(5)} / 経度 ${state.lon.toFixed(5)} <small>${state.accuracy ? "（精度 ±" + state.accuracy + "m）" : "（初期値：東京駅付近）"}</small>`;
+  drawMap(); renderFaces(); renderResult(); renderSun();
+}
+
+// ---- 操作 ----
+const svg = $("map");
+let drag = null;
+function pointerBearing(e) {
+  const p = svg.createSVGPoint(); p.x = e.clientX; p.y = e.clientY;
+  const q = p.matrixTransform(svg.getScreenCTM().inverse());
+  return norm(deg(Math.atan2(q.x - CX, -(q.y - CY))));
+}
+svg.addEventListener("pointerdown", e => {
+  const edge = e.target.dataset && e.target.dataset.edge;
+  if (edge !== undefined) { state.face = +edge; update(); }
+  drag = { start: pointerBearing(e), rot: state.rot };
+  svg.classList.add("drag"); svg.setPointerCapture(e.pointerId);
+});
+svg.addEventListener("pointermove", e => {
+  if (!drag) return;
+  state.rot = norm(drag.rot + pointerBearing(e) - drag.start); update();
+});
+const end = () => { drag = null; svg.classList.remove("drag"); };
+svg.addEventListener("pointerup", end); svg.addEventListener("pointercancel", end);
+
+$("rot").addEventListener("input", e => { state.rot = +e.target.value; update(); });
+$("m15").addEventListener("click", () => { state.rot = norm(state.rot - 15); update(); });
+$("p15").addEventListener("click", () => { state.rot = norm(state.rot + 15); update(); });
+$("faces").addEventListener("click", e => { const b = e.target.closest(".face"); if (b) { state.face = +b.dataset.i; update(); } });
+$("date").addEventListener("change", update);
+const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+$("today").addEventListener("click", () => { $("date").value = iso(new Date()); update(); });
+$("weekend").addEventListener("click", () => {
+  const d = new Date(); d.setDate(d.getDate() + ((6 - d.getDay() + 7) % 7 || 7)); $("date").value = iso(d); update();
+});
+$("locBtn").addEventListener("click", () => {
+  const c = $("coord");
+  if (!navigator.geolocation) { c.textContent = "この環境では位置情報を使えません"; return; }
+  c.textContent = "現在地を取得中…";
+  navigator.geolocation.getCurrentPosition(
+    p => { state.lat = p.coords.latitude; state.lon = p.coords.longitude; state.accuracy = Math.round(p.coords.accuracy); update(); },
+    e => { update(); c.textContent = "取得できませんでした（" + e.message + "）。地図で指定してください"; },
+    { enableHighAccuracy: true, timeout: 10000 });
+});
+
+const cloudVals = [10,10,15,20,20,10,0,0,5,10,20,30,40,30,20,10,10,20,20,20,30,30,40,40];
+$("cloud").innerHTML = cloudVals.map(v => `<span style="background:color-mix(in srgb, var(--sub) ${20 + v * 1.4}%, transparent)" title="${v}%"></span>`).join("");
+update();
+</script>
+</body>
+</html>
