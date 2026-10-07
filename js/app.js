@@ -134,16 +134,18 @@
 
   center.on("dragstart", () => { dragging = "center"; });
   center.on("drag", e => { state.lat = e.latlng.lat; state.lon = e.latlng.lng; drawMap(); });
-  center.on("dragend", () => { dragging = null; onLocationChanged(); });
+  center.on("dragend", () => { dragging = null; state.accuracy = null; onLocationChanged(); });
   handle.on("dragstart", () => { dragging = "handle"; });
   handle.on("drag", e => { state.rot = bearingFromCenter(e.latlng); update(); });
   handle.on("dragend", () => { dragging = null; update(); });
-  map.on("click", e => { state.lat = e.latlng.lat; state.lon = e.latlng.lng; onLocationChanged(); });
+  map.on("click", e => { state.lat = e.latlng.lat; state.lon = e.latlng.lng; state.accuracy = null; onLocationChanged(); });
   map.on("zoomend", drawMap);
 
   // ---------- 場所の変更（現在地・検索・地図タップ・ドラッグ） ----------
+  // 現在地（GPS）なら端末のタイムゾーン、地図で指定した場所は経度からの推定（日本は+9）
+  const browserTz = () => -new Date(state.date + "T12:00:00").getTimezoneOffset() / 60;
   function onLocationChanged() {
-    state.tz = estimateTz(state.lat, state.lon);
+    state.tz = state.accuracy ? browserTz() : estimateTz(state.lat, state.lon);
     update();
   }
   function moveTo(lat, lon, zoom, accuracy) {
@@ -188,25 +190,25 @@
     const el = $("cloud");
     el.hidden = !state.cloud;
     if (state.cloud) {
-      el.innerHTML = state.cloud.map((v, h) =>
-        `<span style="background:color-mix(in srgb, var(--sub) ${15 + v * 0.8}%, transparent)" title="${h}時 雲量 ${Math.round(v)}%"></span>`).join("");
+      el.innerHTML = state.cloud.map((v, h) => v == null
+        ? `<span style="background:transparent;border:1px dashed var(--line)" title="${h}時 データなし"></span>`
+        : `<span style="background:color-mix(in srgb, var(--sub) ${15 + v * 0.8}%, transparent)" title="${h}時 雲量 ${Math.round(v)}%"></span>`).join("");
     }
-    $("cloudLabel").textContent = state.cloud ? "雲量（濃いほど曇り）" : state.cloudMsg;
+    $("cloudLabel").textContent = state.cloud ? "雲量（濃いほど曇り・点線はデータなし）" : state.cloudMsg;
   }
 
   let weatherKey = "", weatherTimer = null, weatherSeq = 0;
   function scheduleWeather() {
-    const key = `${state.lat.toFixed(2)},${state.lon.toFixed(2)},${state.date}`;
+    const key = `${state.lat.toFixed(2)},${state.lon.toFixed(2)},${state.date},${state.tz}`;
     if (key === weatherKey) return;
     weatherKey = key; state.cloud = null; state.cloudMsg = "天気を取得中…";
     clearTimeout(weatherTimer);
     const seq = ++weatherSeq;
     weatherTimer = setTimeout(async () => {
       try {
-        const r = await W.fetchCloud(state.lat, state.lon, state.date);
+        const r = await W.fetchCloud(state.lat, state.lon, state.date, state.tz);
         if (seq !== weatherSeq) return;
         state.cloud = r.cloud; state.cloudMsg = "";
-        state.tz = r.utcOffsetH; // 天気APIが返す現地の時差で、太陽計算の時刻を合わせる
       } catch (err) {
         if (seq !== weatherSeq) return;
         state.cloud = null; state.cloudMsg = "雲量を取得できません：" + err.message;
@@ -387,7 +389,7 @@
     await new Promise(r => setTimeout(r, 30)); // ボタンの無効化を先に描画させる
     const span = +$("spanSel").value, b = faceBearing(state.face);
     let daily = {};
-    try { daily = await W.fetchDailyCloud(state.lat, state.lon); } catch (e) { /* 雲量なしで続行 */ }
+    try { daily = await W.fetchDailyCloud(state.lat, state.lon, state.tz); } catch (e) { /* 雲量なしで続行 */ }
     const rows = [], start = new Date(); start.setHours(12, 0, 0, 0);
     for (let i = 0; i < span; i++) {
       const dt = new Date(start); dt.setDate(start.getDate() + i);
@@ -407,7 +409,7 @@
     ul.innerHTML = (near.length ? head("近日のおすすめ（雲量予報込み）") + near.map(li).join("") : "")
       + (all.length ? head(near.length ? "期間内で太陽条件がよい日（雲量は考慮なし）" : "期間内で太陽条件がよい日") + all.map(li).join("") : "");
     note.textContent = all.length
-      ? "順光の長さを主に、ゴールデンアワー・斜光を加点しています。雲量予報は約16日先まで。"
+      ? "順光の長さを主に、ゴールデンアワー・斜光を加点しています。雲量予報は約9日先まで。"
       : "この面は期間内に直射が当たりません。別の面を選ぶか、期間を延ばしてください。";
     btn.disabled = false;
   }

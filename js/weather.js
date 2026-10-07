@@ -1,37 +1,69 @@
-// Open-Meteo（APIキー不要）から、指定日の1時間ごとの雲量(%)を取得する。
-// 天気は約10km格子なので、位置は小数2桁（約1km）に丸めて送る（建物の正確な場所を外部に送らない）
+// MET Norway（ノルウェー気象局）Locationforecast から雲量(%)を取得する。
+// 商用利用可・無料・APIキー不要（CC BY 4.0、出典表示が必要）。ブラウザからは Origin ヘッダで識別される。
+// 予報は約9〜10日先まで。最初の約60時間は1時間ごと、その先は6時間ごとの値。過去の日付は取得できない。
+// 位置は小数2桁（約1km）に丸めて送る（建物の正確な場所を外部に送らない。規約の上限は4桁）。
 window.Weather = (() => {
+  const TTL = 10 * 60 * 1000; // 同じ地点の予報は10分間使い回す
   const cache = new Map();
 
-  async function fetchCloud(lat, lon, date) {
-    const key = `${lat.toFixed(2)},${lon.toFixed(2)},${date}`;
-    if (cache.has(key)) return cache.get(key);
-    const today = new Date(); today.setHours(0, 0, 0, 0);
-    const [y, m, d] = date.split("-").map(Number);
-    const past = new Date(y, m - 1, d) < today;
-    const base = past ? "https://archive-api.open-meteo.com/v1/archive" : "https://api.open-meteo.com/v1/forecast";
-    const url = `${base}?latitude=${lat.toFixed(2)}&longitude=${lon.toFixed(2)}&hourly=cloud_cover&start_date=${date}&end_date=${date}&timezone=auto`;
-    const r = await fetch(url);
-    if (!r.ok) {
-      // 予報の範囲外（約16日先まで）や、直近の過去日は 400 になる
-      throw new Error(past ? "過去日の観測データがまだありません" : "予報は約16日先までです");
-    }
+  async function loadSeries(lat, lon) {
+    const key = `${lat.toFixed(2)},${lon.toFixed(2)}`;
+    const hit = cache.get(key);
+    if (hit && Date.now() - hit.at < TTL) return hit.series;
+    const r = await fetch(`https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=${lat.toFixed(2)}&lon=${lon.toFixed(2)}`);
+    if (!r.ok) throw new Error("天気サーバーに接続できません（" + r.status + "）");
     const j = await r.json();
-    const cloud = j.hourly && j.hourly.cloud_cover;
-    if (!cloud || cloud.length < 24 || cloud.every(v => v == null)) throw new Error("この日の雲量データがありません");
-    const res = { cloud: cloud.slice(0, 24), utcOffsetH: (j.utc_offset_seconds || 0) / 3600, past };
-    cache.set(key, res);
-    return res;
+    // 時刻(UTC, 1時間単位の通し番号) → 雲量
+    const series = (j.properties.timeseries || [])
+      .map(t => ({ hour: Math.floor(Date.parse(t.time) / 3600000), v: t.data.instant.details.cloud_area_fraction }))
+      .filter(t => t.v != null);
+    if (!series.length) throw new Error("雲量データがありません");
+    cache.set(key, { at: Date.now(), series });
+    return series;
   }
 
-  // 今日から約16日先までの、日ごとの平均雲量(%)。{ "YYYY-MM-DD": 値 }
-  async function fetchDailyCloud(lat, lon) {
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat.toFixed(2)}&longitude=${lon.toFixed(2)}&daily=cloud_cover_mean&forecast_days=16&timezone=auto`;
-    const r = await fetch(url);
-    if (!r.ok) throw new Error("HTTP " + r.status);
-    const j = await r.json();
+  // 現地日付 date の 0〜23 時の雲量。tz は UTC との時差（時間）
+  function hourlyFor(series, date, tz) {
+    const [y, m, d] = date.split("-").map(Number);
+    const startUtcHour = Math.floor((Date.UTC(y, m - 1, d) - tz * 3600000) / 3600000);
+    const byHour = new Map(series.map(s => [s.hour, s.v]));
+    const lastHour = series[series.length - 1].hour;
+    const out = [];
+    for (let h = 0; h < 24; h++) {
+      const t = startUtcHour + h;
+      let v = byHour.get(t);
+      if (v == null && t <= lastHour) { // 6時間ごとの区間では、直前の値を使う
+        for (let back = 1; back <= 5 && v == null; back++) v = byHour.get(t - back);
+      }
+      out.push(v == null ? null : v);
+    }
+    return out;
+  }
+
+  async function fetchCloud(lat, lon, date, tz) {
+    const series = await loadSeries(lat, lon);
+    const cloud = hourlyFor(series, date, tz);
+    if (cloud.filter(v => v != null).length < 4) {
+      const [y, m, d] = date.split("-").map(Number);
+      const past = Date.UTC(y, m - 1, d) - tz * 3600000 < series[0].hour * 3600000 - 86400000;
+      throw new Error(past ? "過去の日付の雲量は取得できません" : "予報は約9日先までです");
+    }
+    return { cloud };
+  }
+
+  // 約9日先までの、日ごとの日中（6〜18時）の平均雲量(%)。{ "YYYY-MM-DD": 値 }
+  async function fetchDailyCloud(lat, lon, tz) {
+    const series = await loadSeries(lat, lon);
+    const sums = {};
+    series.forEach(s => {
+      const local = new Date(s.hour * 3600000 + tz * 3600000); // UTC として読めば現地時刻
+      const hr = local.getUTCHours();
+      if (hr < 6 || hr > 18) return;
+      const k = `${local.getUTCFullYear()}-${String(local.getUTCMonth() + 1).padStart(2, "0")}-${String(local.getUTCDate()).padStart(2, "0")}`;
+      (sums[k] = sums[k] || []).push(s.v);
+    });
     const out = {};
-    ((j.daily && j.daily.time) || []).forEach((t, i) => { const v = j.daily.cloud_cover_mean[i]; if (v != null) out[t] = v; });
+    Object.keys(sums).forEach(k => { if (sums[k].length >= 3) out[k] = sums[k].reduce((a, b) => a + b, 0) / sums[k].length; });
     return out;
   }
 
