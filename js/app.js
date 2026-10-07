@@ -163,27 +163,6 @@
       { enableHighAccuracy: true, timeout: 12000, maximumAge: 10000 });
   });
 
-  $("searchForm").addEventListener("submit", async ev => {
-    ev.preventDefault();
-    const q = $("q").value.trim(), ul = $("results");
-    if (!q) return;
-    ul.hidden = false; ul.innerHTML = '<li class="none">検索中…</li>';
-    try {
-      const r = await fetch("https://msearch.gsi.go.jp/address-search/AddressSearch?q=" + encodeURIComponent(q));
-      if (!r.ok) throw new Error("HTTP " + r.status);
-      const items = (await r.json()).slice(0, 6);
-      if (!items.length) { ul.innerHTML = '<li class="none">見つかりませんでした。現在地か地図タップで指定してください</li>'; return; }
-      ul.innerHTML = items.map((it, i) => `<li><button data-i="${i}">${it.properties.title}</button></li>`).join("");
-      ul.onclick = e => {
-        const b = e.target.closest("button"); if (!b) return;
-        const [lon, lat] = items[+b.dataset.i].geometry.coordinates;
-        ul.hidden = true; moveTo(lat, lon, 18);
-      };
-    } catch (err) {
-      ul.innerHTML = '<li class="none">検索に失敗しました（' + err.message + '）。現在地か地図タップで指定してください</li>';
-    }
-  });
-
   // ---------- 結果の描画 ----------
   function renderCoord() {
     const hint = state.accuracy ? `（精度 ±${state.accuracy}m）` : state.located ? "" : "（初期値：東京駅付近。現在地か地図で指定してください）";
@@ -357,7 +336,7 @@
     html += `<line x1="${x0 + bw + 14}" y1="${y0}" x2="${x0 + bw + 14}" y2="${GY}" stroke="#a39a8d"/>
       <text x="${x0 + bw + 20}" y="${(y0 + GY) / 2 + 5}" fill="#c9c0b2" font-size="17">高さ ${Math.round(H)}m</text>
       <text x="${x0 + bw + (shadowC * s) / 2}" y="${GY + 22}" fill="#c9c0b2" font-size="15" text-anchor="middle">影 約${Math.round(shadow)}m${shadow > shadowC ? " →" : ""}</text>
-      <text x="${x0 + bw / 2}" y="${GY + 22}" fill="#c9c0b2" font-size="15" text-anchor="middle">奥行 ${Math.round(ext)}m</text>`;
+      <text x="${x0 + bw / 2}" y="${GY + 22}" fill="#c9c0b2" font-size="15" text-anchor="middle">太陽方向 ${Math.round(ext)}m</text>`;
     $("side").innerHTML = html;
     const k = S.classify(sun.alt, sun.az, b);
     $("sideNote").innerHTML = `${hhmm(state.hour)} の太陽は高度 <b>${Math.round(sun.alt)}°</b>。建物の影は高さの約 <b>${(1 / tanA).toFixed(1)}倍</b>。`
