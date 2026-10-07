@@ -1,4 +1,5 @@
-// Open-Meteo（APIキー不要）から、指定日の1時間ごとの雲量(%)を取得する
+// Open-Meteo（APIキー不要）から、指定日の1時間ごとの雲量(%)を取得する。
+// 天気は約10km格子なので、位置は小数2桁（約1km）に丸めて送る（建物の正確な場所を外部に送らない）
 window.Weather = (() => {
   const cache = new Map();
 
@@ -9,7 +10,7 @@ window.Weather = (() => {
     const [y, m, d] = date.split("-").map(Number);
     const past = new Date(y, m - 1, d) < today;
     const base = past ? "https://archive-api.open-meteo.com/v1/archive" : "https://api.open-meteo.com/v1/forecast";
-    const url = `${base}?latitude=${lat.toFixed(4)}&longitude=${lon.toFixed(4)}&hourly=cloud_cover&start_date=${date}&end_date=${date}&timezone=auto`;
+    const url = `${base}?latitude=${lat.toFixed(2)}&longitude=${lon.toFixed(2)}&hourly=cloud_cover&start_date=${date}&end_date=${date}&timezone=auto`;
     const r = await fetch(url);
     if (!r.ok) {
       // 予報の範囲外（約16日先まで）や、直近の過去日は 400 になる
@@ -25,7 +26,7 @@ window.Weather = (() => {
 
   // 今日から約16日先までの、日ごとの平均雲量(%)。{ "YYYY-MM-DD": 値 }
   async function fetchDailyCloud(lat, lon) {
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat.toFixed(4)}&longitude=${lon.toFixed(4)}&daily=cloud_cover_mean&forecast_days=16&timezone=auto`;
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat.toFixed(2)}&longitude=${lon.toFixed(2)}&daily=cloud_cover_mean&forecast_days=16&timezone=auto`;
     const r = await fetch(url);
     if (!r.ok) throw new Error("HTTP " + r.status);
     const j = await r.json();
