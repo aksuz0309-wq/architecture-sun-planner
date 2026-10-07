@@ -78,6 +78,10 @@ input[type=range] { accent-color: var(--accent); }
 .days small { display: block; color: var(--sub); font-size: 12px; }
 .days .rank { font-weight: 700; color: var(--accent); min-width: 1.6em; }
 .days .go { color: var(--sub); font-size: 12px; white-space: nowrap; }
+.side, .curve { display: block; width: 100%; height: auto; border-radius: 10px; background: #15130f; }
+.curve { margin-top: 12px; cursor: pointer; touch-action: manipulation; }
+.sidenote { font-size: 13px; color: var(--sub); margin-top: 8px; }
+.sidenote b { color: var(--ink); }
 .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 10px; font-size: 12px; color: var(--sub); }
 .legend em { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; font-style: normal; }
 

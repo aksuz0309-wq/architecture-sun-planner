@@ -8,7 +8,7 @@
   const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   const state = {
     lat: 35.68123, lon: 139.76712, accuracy: null, located: false, // 初期値は東京駅付近
-    rot: 180, w: 30, d: 20, face: 0,
+    rot: 180, w: 30, d: 20, ht: 20, face: 0,
     date: iso(new Date()), hour: 14, layer: "osm", tz: 9,
     cloud: null, cloudMsg: ""
   };
@@ -19,7 +19,7 @@
     const num = (k, lo, hi) => { const v = parseFloat(p.get(k)); return Number.isFinite(v) && v >= lo && v <= hi ? v : null; };
     const set = (k, key, lo, hi) => { const v = num(k, lo, hi); if (v !== null) state[key] = v; };
     set("lat", "lat", -85, 85); set("lon", "lon", -180, 180); set("r", "rot", 0, 360);
-    set("w", "w", 6, 150); set("d", "d", 6, 150); set("h", "hour", 0, 24);
+    set("w", "w", 6, 150); set("d", "d", 6, 150); set("ht", "ht", 3, 200); set("h", "hour", 0, 24);
     const f = num("f", 0, 3); if (f !== null) state.face = Math.round(f);
     if (/^\d{4}-\d{2}-\d{2}$/.test(p.get("t") || "")) state.date = p.get("t");
     if (p.get("l") === "gsi") state.layer = "gsi";
@@ -27,7 +27,7 @@
   }
   function saveHash() {
     const p = new URLSearchParams({
-      lat: state.lat.toFixed(6), lon: state.lon.toFixed(6), r: Math.round(state.rot), w: Math.round(state.w), d: Math.round(state.d),
+      lat: state.lat.toFixed(6), lon: state.lon.toFixed(6), r: Math.round(state.rot), w: Math.round(state.w), d: Math.round(state.d), ht: Math.round(state.ht),
       f: state.face, t: state.date, h: state.hour.toFixed(2), l: state.layer
     });
     history.replaceState(null, "", "#" + p.toString());
@@ -287,13 +287,97 @@
     $("rot").value = Math.round(state.rot) % 360; $("rotOut").textContent = Math.round(state.rot) % 360 + "°";
     $("bw").value = state.w; $("bwOut").textContent = Math.round(state.w) + "m";
     $("bd").value = state.d; $("bdOut").textContent = Math.round(state.d) + "m";
+    $("bh").value = state.ht; $("bhOut").textContent = Math.round(state.ht) + "m";
     $("date").value = state.date;
   }
 
   function render() {
-    renderControls(); renderCoord(); drawMap(); renderFaces(); renderResult(); renderCloud(); renderTime(); renderSun(); saveHash();
+    renderControls(); renderCoord(); drawMap(); renderFaces(); renderResult(); renderCloud(); renderTime(); renderSide(); renderCurve(); renderSun(); saveHash();
   }
   function update() { scheduleWeather(); render(); }
+
+  // ---------- 太陽の高さ：横から見た図と1日のグラフ ----------
+  const svgNS = "http://www.w3.org/2000/svg";
+  // 太陽方位に沿った方向の、建物の見かけの奥行き（m）
+  function extentAlong(azDeg) {
+    const u = [Math.sin(rad(azDeg)), Math.cos(rad(azDeg))], th = rad(state.rot);
+    const n = [Math.sin(th), Math.cos(th)], t = [Math.cos(th), -Math.sin(th)];
+    return state.w * Math.abs(u[0] * t[0] + u[1] * t[1]) + state.d * Math.abs(u[0] * n[0] + u[1] * n[1]);
+  }
+
+  function renderSide() {
+    const sun = S.position(S.localMs(state.date, state.hour, state.tz), state.lat, state.lon);
+    const b = faceBearing(state.face), diff = S.angleDiff(sun.az, b), up = sun.alt > S.HORIZON;
+    const H = state.ht, GY = 262, CORNER_X = 96;
+    const ext = extentAlong(sun.az);
+    let html = `<rect width="480" height="300" fill="#15130f"/>`;
+    if (!up) {
+      html += `<rect x="0" y="${GY}" width="480" height="38" fill="#2a2823"/>
+        <rect x="${CORNER_X}" y="${GY - Math.min(H, 120)}" width="${Math.max(40, Math.min(ext * 3, 200))}" height="${Math.min(H, 120)}" fill="#37332c" stroke="#5a554c"/>
+        <text x="240" y="110" fill="#a39a8d" font-size="20" text-anchor="middle">太陽は地平線の下（${hhmm(state.hour)}）</text>`;
+      $("side").innerHTML = html;
+      $("sideNote").innerHTML = `太陽高度 <b>${Math.round(sun.alt)}°</b>。夜間のため直射はありません。`;
+      return;
+    }
+    const tanA = Math.tan(rad(Math.max(sun.alt, 0.5)));
+    const shadow = H / tanA, shadowC = Math.min(shadow, H * 2.5 + ext);
+    const s = Math.min(330 / (ext + shadowC), 140 / H);
+    const bw = Math.max(ext * s, 34), bh = H * s, x0 = CORNER_X, y0 = GY - bh;
+    const lit = diff < 90; // 選択面が太陽側にあるか
+    // 地面と影
+    html += `<rect x="0" y="${GY}" width="480" height="38" fill="#2a2823"/>
+      <polygon points="${x0 + bw},${GY} ${x0 + bw + shadowC * s},${GY} ${x0 + bw + shadowC * s * 0.98},${GY + 14} ${x0 + bw},${GY + 14}" fill="#000" opacity=".55"/>`;
+    // 建物（左＝太陽側の壁、右＝日陰側の壁）
+    const wallL = lit ? "#e8a33d" : "#4a463d", wallR = lit ? "#4a463d" : "#e8a33d";
+    html += `<rect x="${x0}" y="${y0}" width="${bw}" height="${bh}" fill="#6b6558"/>
+      <rect x="${x0}" y="${y0}" width="${bw}" height="${bh}" fill="#f3c26b" opacity=".18"/>
+      <line x1="${x0}" y1="${y0}" x2="${x0}" y2="${GY}" stroke="${wallL}" stroke-width="7" ${lit ? "" : 'stroke-dasharray="6 5"'}/>
+      <line x1="${x0 + bw}" y1="${y0}" x2="${x0 + bw}" y2="${GY}" stroke="${wallR}" stroke-width="7" ${lit ? 'stroke-dasharray="6 5"' : ""}/>`;
+    // 太陽光線と高度角（屋根の太陽側の角から）
+    const L = 92, ex = x0 - Math.cos(rad(sun.alt)) * L, ey = y0 - Math.sin(rad(sun.alt)) * L;
+    html += `<line x1="${x0 - 70}" y1="${y0}" x2="${x0}" y2="${y0}" stroke="#a39a8d" stroke-dasharray="4 5"/>
+      <line x1="${ex}" y1="${ey}" x2="${x0}" y2="${y0}" stroke="#f3c26b" stroke-width="3"/>
+      <path d="M ${x0 - 40} ${y0} A 40 40 0 0 1 ${x0 - Math.cos(rad(sun.alt)) * 40} ${y0 - Math.sin(rad(sun.alt)) * 40}" fill="none" stroke="#f3c26b" stroke-width="2"/>
+      <circle cx="${ex}" cy="${ey}" r="13" fill="#f3c26b" stroke="#e8a33d" stroke-width="3"/>
+      <text x="${x0 - 46}" y="${y0 - 6}" fill="#f0ebe3" font-size="20" font-weight="700" text-anchor="end">${Math.round(sun.alt)}°</text>`;
+    // 寸法
+    html += `<line x1="${x0 + bw + 14}" y1="${y0}" x2="${x0 + bw + 14}" y2="${GY}" stroke="#a39a8d"/>
+      <text x="${x0 + bw + 20}" y="${(y0 + GY) / 2 + 5}" fill="#c9c0b2" font-size="17">高さ ${Math.round(H)}m</text>
+      <text x="${x0 + bw + (shadowC * s) / 2}" y="${GY + 28}" fill="#c9c0b2" font-size="16" text-anchor="middle">影 約${Math.round(shadow)}m${shadow > shadowC ? " →" : ""}</text>
+      <text x="${x0 + bw / 2}" y="${GY + 28}" fill="#c9c0b2" font-size="16" text-anchor="middle">奥行 ${Math.round(ext)}m</text>`;
+    $("side").innerHTML = html;
+    const k = S.classify(sun.alt, sun.az, b);
+    $("sideNote").innerHTML = `${hhmm(state.hour)} の太陽は高度 <b>${Math.round(sun.alt)}°</b>。建物の影は高さの約 <b>${(1 / tanA).toFixed(1)}倍</b>。`
+      + `選択中の面は太陽に対して <b>${lit ? "光が当たる側" : "日陰の側"}</b>（角度差 ${Math.round(diff)}°${k ? "・" + LABEL[k] : ""}）。`
+      + `<br><small>図は太陽の方向に沿った断面です。太陽は常に左、強調した壁が撮影面です。</small>`;
+  }
+
+  function renderCurve() {
+    const X = h => 30 + h / 24 * 430, Ymin = -25, Ymax = 90, Y = a => 128 - (a - Ymin) / (Ymax - Ymin) * 110;
+    let html = `<rect width="480" height="160" fill="#15130f"/>
+      <rect x="30" y="${Y(S.GOLDEN)}" width="430" height="${Y(S.HORIZON) - Y(S.GOLDEN)}" fill="#f3c26b" opacity=".22"/>
+      <rect x="30" y="${Y(S.HORIZON)}" width="430" height="${Y(S.BLUE) - Y(S.HORIZON)}" fill="#5d7fb8" opacity=".25"/>
+      <line x1="30" y1="${Y(0)}" x2="460" y2="${Y(0)}" stroke="#a39a8d" stroke-width="1.5"/>`;
+    [30, 60, 90].forEach(a => { html += `<line x1="30" y1="${Y(a)}" x2="460" y2="${Y(a)}" stroke="#38342d"/><text x="26" y="${Y(a) + 5}" fill="#a39a8d" font-size="13" text-anchor="end">${a}°</text>`; });
+    html += `<text x="26" y="${Y(0) + 5}" fill="#a39a8d" font-size="13" text-anchor="end">0°</text>`;
+    [0, 6, 12, 18, 24].forEach(h => { html += `<text x="${X(h)}" y="156" fill="#a39a8d" font-size="13" text-anchor="middle">${h}</text>`; });
+    const pts = []; let peak = { alt: -99, h: 0 };
+    for (let m = 0; m <= 1440; m += 10) {
+      const h = m / 60, a = S.position(S.localMs(state.date, h, state.tz), state.lat, state.lon).alt;
+      pts.push(`${X(h).toFixed(1)},${Y(a).toFixed(1)}`);
+      if (a > peak.alt) peak = { alt: a, h };
+    }
+    html += `<polyline points="${pts.join(" ")}" fill="none" stroke="#f3c26b" stroke-width="3" stroke-linejoin="round"/>`;
+    if (peak.alt > 0) html += `<text x="${X(peak.h)}" y="${Y(peak.alt) - 8}" fill="#f0ebe3" font-size="14" text-anchor="middle">南中 ${Math.round(peak.alt)}°</text>`;
+    const cur = S.position(S.localMs(state.date, state.hour, state.tz), state.lat, state.lon).alt;
+    html += `<line x1="${X(state.hour)}" y1="10" x2="${X(state.hour)}" y2="132" stroke="#fff" stroke-width="2"/>
+      <circle cx="${X(state.hour)}" cy="${Y(cur)}" r="6" fill="#fff" stroke="#e0883a" stroke-width="3"/>`;
+    $("curve").innerHTML = html;
+  }
+  $("curve").addEventListener("click", e => {
+    const r = $("curve").getBoundingClientRect(), x = (e.clientX - r.left) / r.width * 480;
+    state.hour = Math.max(0, Math.min(23.99, (x - 30) / 430 * 24)); update();
+  });
 
   // ---------- ベスト日探し ----------
   const WEEK = ["日", "月", "火", "水", "木", "金", "土"];
@@ -341,6 +425,7 @@
   $("p15").addEventListener("click", () => { state.rot = norm(state.rot + 15); update(); });
   $("bw").addEventListener("input", e => { state.w = +e.target.value; update(); });
   $("bd").addEventListener("input", e => { state.d = +e.target.value; update(); });
+  $("bh").addEventListener("input", e => { state.ht = +e.target.value; update(); });
   $("faces").addEventListener("click", e => { const b = e.target.closest(".face"); if (b) { state.face = +b.dataset.i; update(); } });
   $("date").addEventListener("change", e => { if (e.target.value) { state.date = e.target.value; update(); } });
   $("today").addEventListener("click", () => { state.date = iso(new Date()); update(); });
