@@ -117,10 +117,19 @@
     }));
     if (dragging !== "center") center.setLatLng([state.lat, state.lon]);
     if (dragging !== "handle") handle.setLatLng(pxPoint(state.rot, 125));
+    drawSun();
+  }
+  let sunDown = null;
+  function drawSun() {
     const sun = S.position(S.localMs(state.date, state.hour, state.tz), state.lat, state.lon);
-    const sp = pxPoint(sun.az, 150);
-    sunMark.setLatLng(sp).setIcon(L.divIcon({ className: "", iconSize: [26, 26], iconAnchor: [13, 13], html: `<div class="sunmark ${sun.alt > S.HORIZON ? "" : "down"}"></div>` }));
-    sunLine.setLatLngs([[state.lat, state.lon], sp]).setStyle({ opacity: sun.alt > S.HORIZON ? .9 : .25 });
+    const down = !(sun.alt > S.HORIZON), sp = pxPoint(sun.az, 150);
+    sunMark.setLatLng(sp);
+    if (down !== sunDown) {
+      sunDown = down;
+      sunMark.setIcon(L.divIcon({ className: "", iconSize: [26, 26], iconAnchor: [13, 13], html: `<div class="sunmark ${down ? "down" : ""}"></div>` }));
+      sunLine.setStyle({ opacity: down ? .25 : .9 });
+    }
+    sunLine.setLatLngs([[state.lat, state.lon], sp]);
   }
 
   center.on("dragstart", () => { dragging = "center"; });
@@ -265,7 +274,7 @@
 
   function renderTime() {
     const hr = state.hour;
-    $("hour").value = Math.round(hr * 60 / 5) * 5; $("hourOut").textContent = hhmm(hr);
+    $("hour").value = Math.round(hr * 60); $("hourOut").textContent = hhmm(hr);
     $("now").style.left = `calc(${hr / 24 * 100}% - 1px)`;
     const sun = S.position(S.localMs(state.date, hr, state.tz), state.lat, state.lon);
     const k = S.classify(sun.alt, sun.az, faceBearing(state.face));
@@ -370,14 +379,21 @@
     html += `<polyline points="${pts.join(" ")}" fill="none" stroke="#f3c26b" stroke-width="3" stroke-linejoin="round"/>`;
     if (peak.alt > 0) html += `<text x="${X(peak.h)}" y="${Y(peak.alt) - 8}" fill="#f0ebe3" font-size="14" text-anchor="middle">南中 ${Math.round(peak.alt)}°</text>`;
     const cur = S.position(S.localMs(state.date, state.hour, state.tz), state.lat, state.lon).alt;
-    html += `<line x1="${X(state.hour)}" y1="10" x2="${X(state.hour)}" y2="132" stroke="#fff" stroke-width="2"/>
-      <circle cx="${X(state.hour)}" cy="${Y(cur)}" r="6" fill="#fff" stroke="#e0883a" stroke-width="3"/>`;
+    html += `<line id="curveLine" x1="0" y1="10" x2="0" y2="132" stroke="#fff" stroke-width="2"/>
+      <circle id="curveDot" cx="0" cy="0" r="6" fill="#fff" stroke="#e0883a" stroke-width="3"/>`;
     $("curve").innerHTML = html;
+    curveXY = { X, Y };
+    moveCurveMarker();
   }
-  $("curve").addEventListener("click", e => {
-    const r = $("curve").getBoundingClientRect(), x = (e.clientX - r.left) / r.width * 480;
-    state.hour = Math.max(0, Math.min(23.99, (x - 30) / 430 * 24)); update();
-  });
+  let curveXY = null;
+  function moveCurveMarker() {
+    const line = $("curveLine"), dot = $("curveDot");
+    if (!curveXY || !line || !dot) return;
+    const a = S.position(S.localMs(state.date, state.hour, state.tz), state.lat, state.lon).alt;
+    const x = curveXY.X(state.hour);
+    line.setAttribute("x1", x); line.setAttribute("x2", x);
+    dot.setAttribute("cx", x); dot.setAttribute("cy", curveXY.Y(a));
+  }
 
   // ---------- ベスト日探し ----------
   const WEEK = ["日", "月", "火", "水", "木", "金", "土"];
@@ -432,11 +448,28 @@
   $("weekend").addEventListener("click", () => {
     const d = new Date(); d.setDate(d.getDate() + ((6 - d.getDay() + 7) % 7 || 7)); state.date = iso(d); update();
   });
-  $("hour").addEventListener("input", e => { state.hour = +e.target.value / 60; update(); });
-  $("tl").addEventListener("click", e => {
-    const r = $("tl").getBoundingClientRect();
-    state.hour = Math.max(0, Math.min(23.99, (e.clientX - r.left) / r.width * 24)); update();
-  });
+  // 時刻だけが変わる操作は、重い再描画を避けて必要な部分だけ更新する（なめらかにドラッグするため）
+  let hashTimer = null, rafId = 0;
+  function renderTimeOnly() {
+    rafId = 0;
+    renderTime(); drawSun(); renderSide(); moveCurveMarker();
+    clearTimeout(hashTimer); hashTimer = setTimeout(saveHash, 200);
+  }
+  function setHour(h) {
+    state.hour = Math.max(0, Math.min(23.99, h));
+    if (!rafId) rafId = requestAnimationFrame(renderTimeOnly);
+  }
+  // 要素の上を指でなぞって時刻を変える（タップでも反応。縦スクロールは妨げない）
+  function scrub(el, toHour) {
+    let active = false;
+    el.addEventListener("pointerdown", e => { active = true; el.setPointerCapture(e.pointerId); setHour(toHour(e)); });
+    el.addEventListener("pointermove", e => { if (active) setHour(toHour(e)); });
+    const end = () => { active = false; };
+    el.addEventListener("pointerup", end); el.addEventListener("pointercancel", end);
+  }
+  scrub($("tl"), e => { const r = $("tl").getBoundingClientRect(); return (e.clientX - r.left) / r.width * 24; });
+  scrub($("curve"), e => { const r = $("curve").getBoundingClientRect(); return ((e.clientX - r.left) / r.width * 480 - 30) / 430 * 24; });
+  $("hour").addEventListener("input", e => setHour(+e.target.value / 60));
   document.querySelectorAll(".layerbtns .chip").forEach(b => b.addEventListener("click", () => { setLayer(b.dataset.layer); saveHash(); }));
 
   // ---------- 起動 ----------
