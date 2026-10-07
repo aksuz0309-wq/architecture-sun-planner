@@ -360,4 +360,8 @@
   map.setView([state.lat, state.lon], 18);
   setLayer(state.layer);
   update();
+
+  if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) {
+    navigator.serviceWorker.register("sw.js").catch(() => { /* 登録できなくても通常動作 */ });
+  }
 })();

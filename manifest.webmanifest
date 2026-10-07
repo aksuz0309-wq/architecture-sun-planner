@@ -1,0 +1,13 @@
+{
+  "name": "外観撮影 光読みプランナー",
+  "short_name": "光読み",
+  "description": "場所・建物の向き・日付から、外観撮影に最適な時間を割り出します",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#1b1916",
+  "theme_color": "#1b1916",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}
