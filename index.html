@@ -85,6 +85,21 @@
   </section>
 
   <section class="card">
+    <h2>4. ベスト日を探す（選択中の面）</h2>
+    <div class="row">
+      <select id="spanSel" aria-label="探す期間">
+        <option value="30">今日から30日間</option>
+        <option value="90" selected>今日から90日間</option>
+        <option value="180">今日から180日間</option>
+        <option value="365">今日から1年間</option>
+      </select>
+      <button class="btn" id="findBtn">探す</button>
+    </div>
+    <ol class="days" id="days"></ol>
+    <p class="hint" id="daysNote">順光の長さを主に、ゴールデンアワー・斜光を加点して並べます。16日先までは雲量予報も加味します。</p>
+  </section>
+
+  <section class="card">
     <h2>この日の太陽</h2>
     <div class="sun3" id="sun3"></div>
   </section>

@@ -295,6 +295,46 @@
   }
   function update() { scheduleWeather(); render(); }
 
+  // ---------- ベスト日探し ----------
+  const WEEK = ["日", "月", "火", "水", "木", "金", "土"];
+  const dur = m => (m >= 60 ? `${Math.floor(m / 60)}時間${Math.round(m % 60)}分` : `${Math.round(m)}分`);
+  async function findBestDays() {
+    const btn = $("findBtn"), ul = $("days"), note = $("daysNote");
+    btn.disabled = true; ul.innerHTML = ""; note.textContent = "計算中…";
+    await new Promise(r => setTimeout(r, 30)); // ボタンの無効化を先に描画させる
+    const span = +$("spanSel").value, b = faceBearing(state.face);
+    let daily = {};
+    try { daily = await W.fetchDailyCloud(state.lat, state.lon); } catch (e) { /* 雲量なしで続行 */ }
+    const rows = [], start = new Date(); start.setHours(12, 0, 0, 0);
+    for (let i = 0; i < span; i++) {
+      const dt = new Date(start); dt.setDate(start.getDate() + i);
+      const date = iso(dt), sc = S.dayScore(S.dayProfile(date, state.lat, state.lon, state.tz, b, 10));
+      const cloud = daily[date] == null ? null : daily[date];
+      rows.push({ date, dt, sc, cloud, total: sc.score * (cloud == null ? 1 : 1 - 0.6 * cloud / 100) });
+    }
+    const li = (r, i) => `<li><button data-date="${r.date}">
+      <span class="rank">${i + 1}</span>
+      <span style="flex:1">${r.dt.getMonth() + 1}/${r.dt.getDate()}（${WEEK[r.dt.getDay()]}）
+        <small>順光 ${dur(r.sc.f)}・ゴールデン ${dur(r.sc.g)}・斜光 ${dur(r.sc.s)}${r.cloud == null ? "" : "・雲量予報 " + Math.round(r.cloud) + "%"}</small></span>
+      <span class="go">この日にする ›</span></button></li>`;
+    const head = t => `<li class="dhead">${t}</li>`;
+    // 雲量予報がある日（約16日以内）と無い日を同じ順位で比べると不公平なので、分けて並べる
+    const near = rows.filter(r => r.cloud != null && r.sc.score > 0).sort((x, y) => y.total - x.total).slice(0, 3);
+    const all = rows.slice().sort((x, y) => y.sc.score - x.sc.score).filter(r => r.sc.score > 0).slice(0, 5);
+    ul.innerHTML = (near.length ? head("近日のおすすめ（雲量予報込み）") + near.map(li).join("") : "")
+      + (all.length ? head(near.length ? "期間内で太陽条件がよい日（雲量は考慮なし）" : "期間内で太陽条件がよい日") + all.map(li).join("") : "");
+    note.textContent = all.length
+      ? "順光の長さを主に、ゴールデンアワー・斜光を加点しています。雲量予報は約16日先まで。"
+      : "この面は期間内に直射が当たりません。別の面を選ぶか、期間を延ばしてください。";
+    btn.disabled = false;
+  }
+  $("findBtn").addEventListener("click", findBestDays);
+  $("days").addEventListener("click", e => {
+    const b = e.target.closest("button"); if (!b) return;
+    state.date = b.dataset.date; update();
+    $("faceName").scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+
   // ---------- 操作 ----------
   $("rot").addEventListener("input", e => { state.rot = +e.target.value; update(); });
   $("m15").addEventListener("click", () => { state.rot = norm(state.rot - 15); update(); });

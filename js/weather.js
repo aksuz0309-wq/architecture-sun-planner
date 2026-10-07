@@ -23,6 +23,17 @@ window.Weather = (() => {
     return res;
   }
 
+  // 今日から約16日先までの、日ごとの平均雲量(%)。{ "YYYY-MM-DD": 値 }
+  async function fetchDailyCloud(lat, lon) {
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat.toFixed(4)}&longitude=${lon.toFixed(4)}&daily=cloud_cover_mean&forecast_days=16&timezone=auto`;
+    const r = await fetch(url);
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    const j = await r.json();
+    const out = {};
+    ((j.daily && j.daily.time) || []).forEach((t, i) => { const v = j.daily.cloud_cover_mean[i]; if (v != null) out[t] = v; });
+    return out;
+  }
+
   // 区間 [s, e)（時）の平均雲量。データが無ければ null
   function average(cloud, s, e) {
     if (!cloud) return null;
@@ -31,5 +42,5 @@ window.Weather = (() => {
     return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null;
   }
 
-  return { fetchCloud, average };
+  return { fetchCloud, fetchDailyCloud, average };
 })();
